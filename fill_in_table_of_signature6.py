@@ -34,9 +34,6 @@ class Table_row():
         self.ggl_trnslt_cvn = ggl_trnslt_cvn # см. выше
 
 
-    def __iter__(self): # ИЗ СЛОВАРЯ ИЗВЛЕКАЕТ АТРИБУТЫ В КАКОМ УГОДНО ПОРЯДКЕ, СЛОВАРЬ - НЕУПОРЯДОЧЕННОЕ МНОЖЕСТВО
-        return (getattr(self, x) for x in self.__dict__ if not hasattr(getattr(self, str(x)), '__call__'))
-
     def attr_list(self):
         return [self.sigid, self.signame, self.enabled, self.retired,
                 self.url, self.description, self.cve,
@@ -83,7 +80,7 @@ class Connect():
 class Worker(threading.Thread):
     """Класс-работник для каждого потока.
 
-    Получает номер сигнатуры из очереди о по нему составляет url, парсит страницу. Парсинг находит значения: Enabled, Retired, Description, CVE Description.
+    Получает номер сигнатуры и имя сигнатуры из очереди о по нему составляет url, парсит страницу. Парсинг находит значения: Enabled, Retired, Description, CVE Description.
     Данные закидываются в рабочую очередь.
     """
 
@@ -102,10 +99,11 @@ class Worker(threading.Thread):
             finally:
                 self.work_queue.task_done()
 
-    def process(self, sigid, signame): #
-        """Метод, который и совершает всю работу класса.
+    def process(self, sigid, signame):
+        """Метод, который совершает всю работу класса.
 
-        Метод состоит из двух функций: первая создает ссылку из sigid, вторая парсит страницу в поиске значений.
+        Метод состоит из четырех процедур: первая создает url ссылку из sigid, вторая парсит страницу в поиске значений,
+        третья ищет данные в description, по которым будет создана новая ссылка, четвёртая парсит страницу по новой ссылке.
         """
 
         def cisco_intellishield_url(sigid):
@@ -169,16 +167,7 @@ class Worker(threading.Thread):
             cve_description = " "
         
         
-        # Скидываем данные в рабочую очередь
-#        print("sigid: ", sigid)
-#        print("signame: ", signame)
-#        print("enabled: ", enabled)
-#        print("retired: ", retired)
-#        print("cisco_url: ", cisco_url)
-#        print("description: ", description)
-#        print("cve_description: ", cve_description)
-        table_row = Table_row(sigid, signame, enabled, retired, url=cisco_url, description=description, cve=cve_description)
-        
+        table_row = Table_row(sigid, signame, enabled, retired, url=cisco_url, description=description, cve=cve_description)       
         self.result_queue.put(table_row)
 
 
@@ -233,7 +222,6 @@ class DownloadReadMe():
                 pattern = re.compile('<a\s+[^>]*?title=[\'\"]?Signature\s+Update\s+.*?Readme[^>]*?(?P<readme_url>[\"\']?http://www.cisco.com/[^>]*?[.]txt[\"\']?)[^>]*?>')
                 readme_url = pattern.findall(page)
                 if readme_url:
-                    #print("Ссылка на скачивание Read Me ", readme_url[0].strip('\'\"'))
                     return readme_url[0].strip('\'\"')
                 else:
                     print("Не удалось найти ссылку на скачивание Sensor Readme")
@@ -256,7 +244,7 @@ class DownloadReadMe():
                 download_software_page = "http://software.cisco.com" + url_half[0].strip('"\'')
                 print("Страница скачивания новой сигнатуры: ", download_software_page)
             else:
-                print('А вот хуй') # !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                print('Не удалось найти страницу скачивания новой сигнатуры')
             return download_software_page
 
 
@@ -270,7 +258,7 @@ class DownloadReadMe():
         n = 1
         while os.path.exists(new_folder_name):
             if n > 1:
-                new_folder_name = new_folder_name.replace('({0})'.format(n-1), '({0})'.format(n)) # ПРОЩЕ РЕАЛИЗУЕТСЯ ПОДСТАНОВКА
+                new_folder_name = new_folder_name.replace('({0})'.format(n-1), '({0})'.format(n))
             else:
                 new_folder_name += '({0})'.format(n)
             n += 1
@@ -310,11 +298,11 @@ class Extract():
                         column_name = ""
                         alnum = True
                         for char in line:
-                            if char.isalnum() and alnum: # если не пробел и флаг (что всё еще идут символы) True
+                            if char.isalnum() and alnum:
                                 column_name += char
                                 continue
                             if char.isspace():
-                                alnum = False # буквенно-цифровые символы закончились
+                                alnum = False
                                 column_name += char
                                 continue
                             break 
@@ -357,13 +345,13 @@ def main():
 
     work_queue.join()
     result_queue.join()
-    result_thread.write_csv(os.path.join(os.path.dirname(path), 'Table.csv')) # ИМЯ ЗАПИСЫВАТЬ ПО НОМЕРУ СИГНАТУРЫ
+    result_thread.write_csv(os.path.join(os.path.dirname(path), 'Table.csv'))
     print("Готово. Папка с необходимой информацией должна появиться в той же директории, что и скрипт.")
 
     
 if __name__ == '__main__':
-#    sys.exit(main())
-    main()
+    sys.exit(main())
+
 
 
 
