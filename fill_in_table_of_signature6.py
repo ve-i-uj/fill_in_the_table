@@ -120,7 +120,6 @@ class Worker(threading.Thread):
             opener = connect.cisco_connect()
             resp = opener.open(cisco_url)
 
-            # ЧЕТЫРЕ РАЗА ПОВТОРЯЕТСЯ ОДНО И ТОЖЕ (НУЖНО ВЫНЕСТИ В ОТДЕЛЬНУЮ ПРОЦЕДУРУ)
             lines = resp.read().decode('utf8', 'ignore')
             enabled_pattern = re.compile('>Default Enabled:\s*</SPAN>.*?<SPAN\s+[^>]*?>(.*?)</SPAN>', re.DOTALL)
             enabled = enabled_pattern.findall(lines)
@@ -128,7 +127,7 @@ class Worker(threading.Thread):
 
             retired_pattern = re.compile('>Default Retired:\s*</SPAN>.*?<SPAN\s+[^>]*?>(.*?)</SPAN>', re.DOTALL)
             retired = retired_pattern.findall(lines)
-            retired = retired[0] if retired else " ,"
+            retired = retired[0] if retired else " "
             
             desc_pattern = re.compile('<SPAN class=label[0-9]{1,2}>Description</SPAN>.*?<SPAN\s+[^>]*?>(.*?)</SPAN>', re.DOTALL)
             description = desc_pattern.findall(lines)
