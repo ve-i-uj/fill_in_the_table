@@ -12,7 +12,8 @@ import threading
 import urllib.request
 
 
-class Table_row(): 
+class Table_row():
+    """Класс для хранения данных строки таблицы"""
     def __init__(self, sigid, signame=" ", enabled=" ", retired=" ", url=" ",
                  description=" ", cve=" ", appling=" ",
                  script=" ", ggl_trnslt_dscr=" ", ggl_trnslt_cvn=" "):
@@ -35,6 +36,7 @@ class Table_row():
 
 
     def attr_list(self):
+        """Метод для представления значений атрибутов-колонок в виде списка"""
         return [self.sigid, self.signame, self.enabled, self.retired,
                 self.url, self.description, self.cve,
                 self.russ_description, self.appling, self.script,
@@ -107,14 +109,14 @@ class Worker(threading.Thread):
         """
 
         def cisco_intellishield_url(sigid):
+            """Процедура из sigid составляет url ссылку и возвращает её."""
             one, two = sigid.split(".")
             url = ("https://intellishield.cisco.com/security/alertmanager/ipsSignature?signatureId="
                    + one + "&signatureSubId=" + two)
             return url
 
         def parser(cisco_url):
-            """Функция получает в качестве аргумента экземпляр класса Connect"""
-
+            """Получает ссылку на страницу с описанием сигнатуры, возвращает значения колонок "ENABLED", "RETIRED", "DESCRIPTION" """
             opener = connect.cisco_connect()
             resp = opener.open(cisco_url)
 
@@ -137,27 +139,30 @@ class Worker(threading.Thread):
             
             return enabled, retired, description
 
+        def get_cve_url(description):
+            """Анализирует в строке колонку "DESCRIPTION" и при возможности составляет url-адрес CVE-описания и возвращает его.
+
+            Если нет возвожности составить url-адрес, возвращает None.
+            """
+            cve_pattern = re.compile(r'CVE-[\w\d]+-[\w\d]+')
+            cve_number = re.findall(cve_pattern, description)
+            return ('https://cve.mitre.org/cgi-bin/cvename.cgi?name=' + cve_number[0]) if cve_number else None
 
         def get_cve_description(cve_url):
-
+            """Парсит страницу по url-адресу, заполняет в строке колонку "Уязвимость (CVE)" """
             opener = connect.cve_connect()
             resp = opener.open(cve_url)
             lines = resp.read().decode('utf8', 'ignore')
             description_pattern = re.compile('>Description<.*?<[tTdD]{2}\s+[^>]*?>(.*?)</[tTdD]{2}>', re.DOTALL)
-            cve_description = description_pattern.findall(lines)          
+            cve_description = description_pattern.findall(lines)
             return cve_description[0].replace("\n", " ").strip() if cve_description else " "
 
-
-        def get_cve_url(description):
-            cve_pattern = re.compile(r'CVE-[\w\d]+-[\w\d]+')
-            cve_number = re.findall(cve_pattern, description)
-            return ('https://cve.mitre.org/cgi-bin/cvename.cgi?name=' + cve_number[0]) if cve_number else None
 
 
 
  
         opener = connect.cisco_connect()
-        cisco_url = cisco_intellishield_url(sigid) # заполняется колонка url-адресов intellishield.cisco.com
+        cisco_url = cisco_intellishield_url(sigid)
         enabled, retired, description = parser(cisco_url)
 
         cve_url = get_cve_url(description)
@@ -172,6 +177,10 @@ class Worker(threading.Thread):
 
 
 class Fill_and_WriteRow(threading.Thread):
+    """Класс принимает из очереди строки таблицы (экземпляры класса Table_Row), заполняет ими словарь.
+
+    Реализован метод для записи таблицы в файл формата csv из словаря-атрибута.
+    """
     def __init__(self, result_queue):
         super().__init__()
         self.result_queue = result_queue
@@ -190,6 +199,7 @@ class Fill_and_WriteRow(threading.Thread):
         self.data_table[sigid] = table_row
 
     def write_csv(self, path):
+        """Метод для записи таблицы в файл формата csv из словаря-атрибута."""
         with open(path, 'w')as fh:
             first_row = "S5xx SIGNATURE UPDATE DETAILS",
             second_row = "NEW SIGNATURES",
@@ -203,6 +213,7 @@ class Fill_and_WriteRow(threading.Thread):
 
 
 class DownloadReadMe():
+    """Класс реализует метод для скачивания файла IPS-sig-SXXX.readme.txt (Описание обновлений баз сигнатур атак сенсоров) с сайта cisco.com"""
     def __init__(self):
         path_folder = os.path.join(os.path.dirname(sys.argv[0]), 'Temp')
         while os.path.exists(path_folder):
@@ -212,6 +223,18 @@ class DownloadReadMe():
         self.path_folder = path_folder
 
     def download(self):
+        def get_download_software_url(opener):
+            url_search_page = "https://software.cisco.com/download/type.html?mdfid=278810718&catid=268438162"
+            resp = opener.open(url_search_page)
+            search_page = resp.read().decode('utf8', 'ignore')
+            pattern = re.compile('<a[^>]*?href=(?P<url_half>[^>]*?)>Intrusion\s+Prevention\s+System\s+\(IPS\)\s+Signature\s+Updates</a>')
+            url_half = pattern.findall(search_page)
+            if url_half:
+                download_software_page = "http://software.cisco.com" + url_half[0].strip('"\'')
+                print("Страница скачивания новой сигнатуры: ", download_software_page)
+            else:
+                print('Не удалось найти страницу скачивания новой сигнатуры')
+            return download_software_page
         
         def download_sensor_readme(download_software_url, opener):
             def get_readme_url(url):
@@ -234,19 +257,6 @@ class DownloadReadMe():
             return os.path.abspath(fullname)
             
             
-        def get_download_software_url(opener):
-            url_search_page = "https://software.cisco.com/download/type.html?mdfid=278810718&catid=268438162"
-            resp = opener.open(url_search_page)
-            search_page = resp.read().decode('utf8', 'ignore')
-            pattern = re.compile('<a[^>]*?href=(?P<url_half>[^>]*?)>Intrusion\s+Prevention\s+System\s+\(IPS\)\s+Signature\s+Updates</a>')
-            url_half = pattern.findall(search_page)
-            if url_half:
-                download_software_page = "http://software.cisco.com" + url_half[0].strip('"\'')
-                print("Страница скачивания новой сигнатуры: ", download_software_page)
-            else:
-                print('Не удалось найти страницу скачивания новой сигнатуры')
-            return download_software_page
-
 
         opener = connect.cisco_connect()
         download_software_page = get_download_software_url(opener)
@@ -268,6 +278,7 @@ class DownloadReadMe():
 
 
 class Extract():
+    """Класс реализует метод для экстрагирования таблицы последних дополнений описания обновлений баз сигнатур атак сенсоров из файла IPS-sig-SXXX.readme.txt"""
     def __init__(self, path):
         self.path = path
         self.data = {}
