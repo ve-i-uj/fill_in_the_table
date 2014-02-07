@@ -216,7 +216,7 @@ class Fill_and_WriteRow(threading.Thread):
             w.writerow(first_row)
             w.writerow(second_row)
             w.writerow(header)
-            for key, table_row in sorted(self.data_table.items()):
+            for key, table_row in sorted(self.data_table.items(), key=lambda x: float(x[0])):
                 w.writerow(table_row.attr_list())
 
 
