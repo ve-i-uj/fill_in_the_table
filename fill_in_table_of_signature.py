@@ -65,13 +65,8 @@ class Connect():
 
     def cisco_connect(self):        
         try:
-            username='smartnetstp'
-            password = 'Radisheva12'
             auth = urllib.request.HTTPBasicAuthHandler()
-            auth.add_password('User', "https://www.cisco.com",
-                              username, password)
-
-            opener = urllib.request.build_opener(auth, self.proxy, self.proxy_auth_handler)
+            opener = urllib.request.build_opener(auth)
             return opener
         except urllib.request.HTTPError as err:
             print(err.read())
@@ -245,9 +240,7 @@ class DownloadReadMe():
             return download_software_page
         
         def download_sensor_readme(download_software_url, opener):
-            def get_readme_url(url):
-                auth = urllib.request.HTTPBasicAuthHandler()
-                opener = urllib.request.build_opener(auth)
+            def get_readme_url(url, opener):
                 resp = opener.open(url)
                 page = resp.read().decode('utf8', 'ignore')
                 pattern = re.compile('<a\s+[^>]*?title=[\'\"]?Signature\s+Update\s+.*?Readme[^>]*?(?P<readme_url>[\"\']?http://www.cisco.com/[^>]*?[.]txt[\"\']?)[^>]*?>')
@@ -258,7 +251,7 @@ class DownloadReadMe():
                     print("Не удалось найти ссылку на скачивание Sensor Readme")
                     sys.exit()
 
-            readme_url = get_readme_url(download_software_url)
+            readme_url = get_readme_url(download_software_url, opener)
             filename = readme_url.rsplit('/', 1)[1]
             path = os.path.dirname(sys.argv[0])
             fullname, headers = urllib.request.urlretrieve(readme_url, filename=(self.path_folder + '/' + filename))
